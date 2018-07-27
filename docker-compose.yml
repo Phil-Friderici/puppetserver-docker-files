@@ -1,0 +1,288 @@
+version: '3.6'
+#--docker.domain=traefik \
+
+services:
+  
+  traefik:
+    image: traefik
+    command:
+      - "--web"
+      - "--web.address=:7080"
+      - "--docker"
+      - "--docker.swarmMode"
+      - "--docker.domain=fqdn.domain"
+      - "--docker.watch"
+      - "--logLevel=DEBUG"
+      - "--entryPoints='Name:http://swarm_manager.fqdn.domain::80'"
+      - "--defaultEntryPoints='http'"
+      - "--accessLogsFile='log/access.log'"
+    ports:
+      - 80:80
+      - 7080:7080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /dev/null:/traefik.toml
+    networks:
+      - traefik-net
+    deploy:
+      placement:
+        constraints: [node.role==manager]
+
+  puppetca:
+    hostname: '{{.Node.Hostname}}'
+    image: swarm_manager.fqdn.domain:5000/puppet/puppetserver-local
+    #image: puppet/puppetserver
+    ports:
+      - target: 8140
+        published: 8142
+        mode: host
+     # - 8140:8140
+    networks:
+      - traefik-net
+    volumes:
+      - data_vol:/etc/puppetlabs/code/
+      - data_vol:/etc/puppetlabs/puppet/ssl/
+      - data_vol:/opt/puppetlabs/server/data/puppetserver/
+    # In some cases unqualified hostnames can have the .local suffix
+    # added, I've seen this under Docker of Mac Beta for instance.
+    # Due to needing to access PuppetDB on same hostame as signed in the
+    # certificate you may need to uncommant the following lines
+    environment:
+      - PUPPETDB_SERVER_URLS=https://puppetdb1.fqdn.domain:8081,https://puppetdb2.fqdn.domain:8081
+      - CA_TRUE=true
+      - CA_SERVER=puppetca.fqdn.domain
+      - AUTOSIGN=true
+      - DNS_ALT_NAMES=puppetca.fqdn.domain,swarm_manager.fqdn.domain,puppet-swarm001.fqdn.domain,puppet-swarm002.fqdn.domain,swarm_node003.fqdn.domain,swarm_node0004.fqdn.domain,puppet-swarm.fqdn.domain
+    deploy:
+      #mode: replicated
+      mode: global
+      #replicas: 2
+      placement:
+        #constraints: [node.role == worker]
+        constraints:
+        - node.labels.type == primary
+        #- node.labels.type == puppetdb1_node
+        - node.role == worker
+      labels:
+        - "traefik.port=8140"
+        - "traefik.backend=puppetca"
+        - "traefik.enable=true"
+        - "traefik.logLevel=DEBUG"
+        - "traefik.backend.loadbalancer.swarm=true"
+        - "traefik.docker.network=traefik-net"
+        - "traefik.frontend.rule=Host:puppetca.fqdn.domain"
+        #- "traefik.frontend.rule=Path:/puppet"
+      
+
+  puppet:
+    hostname: '{{.Node.Hostname}}'
+    image: swarm_manager.fqdn.domain:5000/puppet/puppetserver-local
+    #image: puppet/puppetserver
+    #ports:
+    #  - target: 8140
+    #    published: 8140
+    #    mode: host
+    ports:
+      - 8140:8140
+    networks:
+      - traefik-net
+  #  #restart_policy:
+  #  #    condition: on-failure
+    volumes:
+      - data_vol:/etc/puppetlabs/code/
+      - data_vol:/etc/puppetlabs/puppet/ssl/
+      - data_vol:/opt/puppetlabs/server/data/puppetserver/
+    # In some cases unqualified hostnames can have the .local suffix
+    # added, I've seen this under Docker of Mac Beta for instance.
+    # Due to needing to access PuppetDB on same hostame as signed in the
+    # certificate you may need to uncommant the following lines
+    environment:
+      - PUPPETDB_SERVER_URLS=https://puppetdb1.fqdn.domain:8081,https://puppetdb2.fqdn.domain:8081
+      - PUPPET_SERVER=swarm_manager.fqdn.domain
+      - CA_SERVER=puppetca.fqdn.domain
+      - CA_PORT=8142
+      - DNS_ALT_NAMES=puppetca.fqdn.domain,swarm_manager.fqdn.domain,puppet-swarm001.fqdn.domain,puppet-swarm002.fqdn.domain,swarm_node003.fqdn.domain,swarm_node004.fqdn.domain,puppet-swarm.fqdn.domain
+    deploy:
+      mode: replicated
+      #mode: global
+      replicas: 2
+      placement:
+        constraints:
+        - node.labels.type == puppet_node
+        - node.role == worker
+      labels:
+        - "traefik.port=8140"
+        - "traefik.backend=puppet"
+        - "traefik.enable=true"
+        - "traefik.logLevel=DEBUG"
+        - "traefik.backend.loadbalancer.swarm=true"
+        - "traefik.docker.network=traefik-net"
+        - "traefik.frontend.rule=Host:puppet-cluster.fqdn.domain"
+        #- "traefik.frontend.rule=Path:/puppet"
+
+
+
+# Primary Read/Write Postgres
+  puppetdb-postgres1:
+    #hostname: '{{.Node.Hostname}}'
+    hostname: puppetdb-postgres1
+    image: puppet/puppetdb-postgres
+    environment:
+      - POSTGRES_PASSWORD=puppetdb
+      - POSTGRES_USER=puppetdb
+    volumes:
+      - puppetdb-postgres-data1:/var/lib/postgresql/data-orig-image/
+    # Published only for testing, but not necessary to publish postgres ports in production
+    ports:
+      - target: 5432
+        published: 5432
+        mode: host
+    #ports:
+    #  - 5432:5432
+    networks:
+      - traefik-net
+    deploy:
+      #mode: replicated
+      mode: global
+      #replicas: 2
+      placement:
+        constraints:
+        - node.labels.type == puppetdb1_node
+        #- node.labels.type == primary
+        - node.role == worker
+      labels:
+        - "traefik.port=5432"
+        - "traefik.backend=puppetdb-postgres"
+        - "traefik.enable=false"
+        - "traefik.docker.network=traefik-net"
+        - "traefik.frontend.rule=Host:puppetdb-postgres.fqdn.domain"
+        #- "traefik.backend.loadbalancer.sticky=true"
+
+## Replica Postgres DB.
+## usually replicas are read only. But for PuppetDB we have to have 2 Full Primary DB that allow write
+## This is to allow full PuppetDB functionality
+## The Postgres DBs will be synched regularly through the PuppetDB
+  puppetdb-postgres2:
+    #hostname: '{{.Node.Hostname}}'
+    hostname: puppetdb-postgres2
+    image: puppet/puppetdb-postgres
+    environment:
+      - POSTGRES_PASSWORD=puppetdb
+      - POSTGRES_USER=puppetdb
+    volumes:
+      - puppetdb-postgres-data2:/var/lib/postgresql/data-orig-image/
+    ports:
+      - target: 5432
+        published: 5432
+        mode: host
+    #ports:
+    #  - 5432:5432
+    networks:
+      - traefik-net
+    deploy:
+      mode: global
+      placement:
+        constraints:
+        #- node.labels.type == puppetdb_node
+        - node.labels.type == puppetdb2_node
+        - node.role == worker
+      labels:
+        - "traefik.port=5432"
+        - "traefik.backend=puppetdb-postgres2"
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-net"
+        - "traefik.frontend.rule=Host:puppetdb-postgres2.fqdn.domain"
+#        #- "traefik.frontend.rule=Host:puppetdb2.fqdn.domain"
+#
+
+# Primary PuppetDB. Uses Primary Read/write postgres
+  puppetdb-primary:
+    hostname: '{{.Node.Hostname}}'
+    #image: puppet/puppetdb
+    image: swarm_manager.fqdn.domain:5000/puppet/puppetdb-local
+    environment:
+      - CA_SERVER=puppetca.fqdn.domain
+      - CA_PORT=8142
+      - PUPPETDB_DATABASE_CONNECTION="//puppetdb-postgres1:5432/puppetdb"
+    networks:
+      - traefik-net
+    ports:
+      - target: 8081
+        published: 8081
+        mode: host
+    #ports:
+    #  - 8080:8080
+    #  - 8081:8081
+    volumes:
+      - data_puppetdb_vol1:/etc/puppetlabs/puppet/ssl/
+    deploy:
+      #mode: replicated
+      mode: global
+      #replicas: 2
+      placement:
+        constraints:
+        #- node.labels.type == puppetdb_node
+        - node.labels.type == puppetdb1_node
+        #- node.labels.type == primary
+        - node.role == worker
+      labels:
+        - "traefik.port=8080"
+        - "traefik.port=8081"
+        - "traefik.backend=puppetdb-primary"
+        - "traefik.frontend.rule=Path:/puppetdb-primary"
+        - "traefik.enable=true"
+        - "traefik.logLevel=DEBUG"
+        - "traefik.docker.network=traefik-net"
+        - "traefik.frontend.rule=Host:'{{.Node.Hostname}}'"
+        #- "traefik.backend.loadbalancer.sticky=true"
+
+## This is a Puppetdb replica. Uses read/write postgres DB
+  puppetdb-replica:
+    hostname: puppetdb2.fqdn.domain
+    #image: puppet/puppetdb
+    image: swarm_manager.fqdn.domain:5000/puppet/puppetdb-local
+    environment:
+      - CA_SERVER=puppetca.fqdn.domain
+      - CA_PORT=8142
+      - PUPPETDB_DATABASE_CONNECTION="//puppetdb-postgres2:5432/puppetdb"
+    networks:
+      - traefik-net
+    ports:
+      - target: 8081
+        published: 8081
+        mode: host
+    #ports:
+    #  - 8080
+    #  - 8081
+    volumes:
+      - data_puppetdb_vol2:/etc/puppetlabs/puppet/ssl/
+    deploy:
+      #mode: replicated
+      mode: global
+      #replicas: 2
+      placement:
+        constraints:
+        - node.labels.type == puppetdb2_node
+        #- node.labels.type == primary
+        - node.role == worker
+      labels:
+        - "traefik.port=8080"
+        - "traefik.port=8081"
+        - "traefik.backend=puppetdb-replica"
+        - "traefik.frontend.rule=Path:/puppetdb-replica"
+        - "traefik.enable=true"
+        - "traefik.logLevel=DEBUG"
+        - "traefik.docker.network=traefik-net"
+        - "traefik.frontend.rule=Host:puppetdb2.fqdn.domain"
+
+
+volumes:
+  data_vol:
+  data_puppetdb_vol1:
+  data_puppetdb_vol2:
+  puppetdb-postgres-data1:
+  puppetdb-postgres-data2:
+  #pg-primary-vol:
+  #pg-replica-vol:
+networks:
+  traefik-net:
