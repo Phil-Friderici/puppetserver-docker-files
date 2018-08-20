@@ -50,6 +50,15 @@ This has been tested to work with
 
 Docker version 18.03.1-ce
 
+For deployment of Puppet servers for the first time, certificates need to be manually signed after running the above command to allow alternate dns names. Then subsequent docker stack deploy would reuse the same certificates. We can automate this in the next steps.
+
+Run the following command on puppet ca container
+# docker exec -it <puppetca>
+and
+
+ = > puppet cert sign --allow-dns-alt-names <puppet1.fqdn>
+
+
 ###########################################################
 Extra notes
 
