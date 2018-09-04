@@ -14,9 +14,33 @@ if test -n "${DNS_ALT_NAMES}" ; then
 fi
 
 
-# If CA server, then set CA_TRUE=true
-#if test -n "${CA_TRUE}" && ; then
-if [ "${CA_TRUE}" = "true" ] ; then
+# Configure CA server
+# Inheritance of environment variable by stack deployment remote client from host seems not supported.
+# Use fqdn hostname to specify CA servers. 
+# MUST provide at least one CA_SERVER
+# if test -n "${CA_SERVER}" ; then
+if [ -n "${CA_SERVER}" ] || [  -n "${CA_SERVER1}" ] || [ -n "${CA_SERVER2}" ] ; then
+
+  if [  -n "$CA_SERVER" ]; then
+    CA_SERVER=${CA_SERVER}
+
+  elif [ -n "${CA_SERVER1}" ]; then
+
+    CA_SERVER=${CA_SERVER1}
+  else
+    CA_SERVER=${CA_SERVER2} 
+  fi
+
+else
+echo "CA_SERVER is mandatory in docker-compose.yml\n"
+echo "Exiting!! \n"
+exit
+fi
+
+HOSTNAME=`hostname -f`
+
+if [ "${HOSTNAME}" = "$CA_SERVER" ] || [ "${HOSTNAME}" = "$CA_SERVER1" ] || [ "${HOSTNAME}" = "$CA_SERVER2" ]; then
+
 # Configure puppet to use a certificate autosign script (if it exists)
 # AUTOSIGN=true|false|path_to_autosign.conf
   if test -n "${AUTOSIGN}" ; then
@@ -42,7 +66,7 @@ while ! nc -z "$CA_SERVER" $CA_PORT; do
 sleep 1
 done
 
-puppet agent -t --noop
+puppet agent -t --noop 
 
 
 # Workaround fix on non-ca Puppetmasters. Default ssl-crl-path=/etc/puppetlabs/puppet/ssl/ca/ca_crl.pem
@@ -50,6 +74,7 @@ puppet agent -t --noop
     mkdir /etc/puppetlabs/puppet/ssl/ca
     ln -s /etc/puppetlabs/puppet/ssl/crl.pem /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem
   fi
+
 
 fi
 

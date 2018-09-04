@@ -1,6 +1,31 @@
 This repo contains Dokcer Puppetserver images that are adapted from the Puppetlabs images.
 
-1. Docker images
+Prepare th hosts:
+
+
+1. Ensure hostname command returns fqdn
+check /etc/hosts & /etc/hostname & reboot 
+or
+hostnamectl set-hostname hostname.fqdn
+ 
+2. Install latest versions of docker
+
+docker-ce-18.03.1.ce-1.el7.centos.x86_64
+
+# curl -SsL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
+
+
+To install
+
+yum --showduplicates list docker-ce
+yum install docker-ce-18.03.1.ce-1.el7.centos.x86_64
+
+enable/start docker
+systemctl enable docker
+systemctl start docker
+
+
+2. Docker images
 
 The Puppetlabs images are inflexible and may not allow proper setup of Puppet servers to meet our design.
 One such shortcoming is that each Puppetserver instance instantiates a Puppetca.
@@ -8,8 +33,10 @@ One such shortcoming is that each Puppetserver instance instantiates a Puppetca.
 The instances do not also allow creation of dns_alt_names 
 
 
-To build the images, cd into the directory containing Dockerfile
+To build the adapted images (may need further fine tuning), cd into the directory containing Dockerfile
+Note: We may need to test & fine tune further
 such as (puppetserver)
+
 # cd /PATH/puppetserver-docker-files/puppetserver/docker/puppetserver
 And run the following command, providing a tag to refer to the image
 # docker build -t puppet/puppetserver1-local .
@@ -22,7 +49,7 @@ Puppetdb
 
 
 
-You then need to push these images to a registry server for easy access during stack deployment
+You then need to push these images to a registry server for easy access during stack deployment. Could be pushed to Internet registry, or local registry.
 such as
 Puppetserver image
 # docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
@@ -33,13 +60,76 @@ PuppetDB image
 # docker push docker-registry.fqdn:5000/puppet/puppetdb-local
 
 
+Setup local registry server:
+
+1. For the swarm, images have to come from a central registry.
+Could user Internet registry / docker.io. Or create a local registry
+To create a local registry run the following command:
+
+# docker service create --name registry --publish published=5000,target=5000 reg
+istry:2
+
+Start the registry automatically
+If you want to use the registry as part of your permanent infrastructure, you should set it to restart automatically when Docker restarts or if it exits. 
+This example uses the --restart always flag to set a restart policy for the registry.
+docker run -d   -p 5000:5000   --restart=always   --name registry   registry:2
+
+
+This way, images can be pushed to localhost:5000
+For proper use across the network, create a registry to be used with fqdn:5000/
+And this requires SSL certificates to be setup on the Registry / and also on nod
+es.
+
+
+Registry SSL certificate setup.
+To allow registry use from remote hosts, SSL has to be configured.
+
+Certs:
+
+Copy the Registry certificates to the nodes.
+Certificates could be self-signed, or even use Puppet's ssl certificate.
+
+Copy certificates to the following directory.
+
+/etc/docker/certs.d/docker-registry.fqdn:5000/
+
+domain.crt (ca.pem)
+domain.key
+
+
+The below file configuration may be needed to allow insecure registries. For local / initial test systems this should be ok instead of ssl setup
+
+
+/etc/docker/daemon.json
+{
+        "insecure-registries" : ["docker-registry.fqdn:5000"]
+    }
+
+
+This allows images to be downloaded from the Private/internal registry.
+To test:
+
+docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
+
 
 ###################################################################
-2. docker-compose.yml
+5. docker-compose.yml
 In this directory there's also a sample full stack docker-compose.yml
 Please adapt it accordingly to fix the image names and node.label servers
 
-and then deploy the full stack with the following command
+NOTE: YOU MUST set CA_SERVER environment variable in puppet-docker service section
+
+
+Ensure labels are configured on container hosts appropriately because they are used in the docker-compose.yml file.
+
+1. Add labels to Swarm nodes:
+
+This allows restricting docker containers on specific nodes. Useful for SSL certificates etc.
+
+# docker node update --label-add type=puppetdb1_node <Node ID>
+#  docker node update --label-add type=fqdn_puppetdb_primary ja3c57gxcso6awtlp4obenih9
+
+2. deploy the full stack with the following command
 
 
 # docker stack deploy -c docker-compose.yml <stack-name>
@@ -59,6 +149,12 @@ and
  = > puppet cert sign --allow-dns-alt-names <puppet1.fqdn>
 
 
+In case a docker container fails, or to see progress check logs
+
+docker ps
+docker logs -f <container-id>
+
+
 ###########################################################
 Extra notes
 
@@ -75,44 +171,10 @@ Use intuitive label_name.
 Node ID can be found from 1st column in the output of "docker node ls" command on the swarm manager.
 
 
-Registry server:
+TBD:
+Need to investigate labels and see how to separate puppetca traffic from puppet master /workers traffic.
 
-4. For the swarm, images have to come from a central registry.
-Could user Internet registry / docker.io. Or create a local registry
-To create a local registry run the following command:
-
-# docker service create --name registry --publish published=5000,target=5000 registry:2
-
-This way, images can be pushed to localhost:5000
-For proper use across the network, create a registry to be used with fqdn:5000/
-And this requires SSL certificates to be setup on the Registry / and also on nodes. 
-
-Registry SSL certificate setup.
-To allow registry use from remote hosts, SSL has to be configured.
-
-Certs:
-
-Copy the Registry certificates to the nodes.
-Certificates could be self-signed, or even use Puppet's ssl certificate.
-
-Copy certificates to the following directory.
-
-/etc/docker/certs.d/docker-registry.fqdn:5000/
-
-domain.crt (ca.pem)
-domain.key
+Need to better understand Traefik setup
 
 
-The below file configuration may be needed to allow insecure registries
-
-
-/etc/docker/daemon.json
-{
-        "insecure-registries" : ["docker-registry.fqdn:5000"]
-    }
-
-
-This allows images to be downloaded from the Private/internal registry.
-To test:
-
-docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
+Need to FLIP?? Necessary ?

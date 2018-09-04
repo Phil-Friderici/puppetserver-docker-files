@@ -38,14 +38,12 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     gem install --no-rdoc --no-ri r10k
 
-COPY puppetserver /etc/default/puppetserver
-COPY logback.xml /etc/puppetlabs/puppetserver/
-COPY request-logging.xml /etc/puppetlabs/puppetserver/
+# Add configuration files into the image
+COPY config/puppetserver /etc/default/puppetserver
+COPY config/logback.xml /etc/puppetlabs/puppetserver/
+COPY config/request-logging.xml /etc/puppetlabs/puppetserver/
 
-COPY puppet.conf /etc/puppetlabs/puppet/
-
-# Fix ssl-crl-path. Default ssl-crl-path =  /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem
-COPY ca /etc/puppetlabs/puppet/ssl/
+COPY config/puppet.conf /etc/puppetlabs/puppet/
 
 
 
@@ -57,7 +55,7 @@ RUN puppet config set storeconfigs_backend puppetdb --section main && \
     puppet config set storeconfigs true --section main && \
     puppet config set reports puppetdb --section main
 
-COPY puppetdb.conf /etc/puppetlabs/puppet/
+COPY config/puppetdb.conf /etc/puppetlabs/puppet/
 
 
 
