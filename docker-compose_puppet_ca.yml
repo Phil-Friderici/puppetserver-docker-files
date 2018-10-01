@@ -1,0 +1,97 @@
+version: '3.6'
+
+services:
+  
+  traefik:
+    image: traefik
+    # Extra configs placeholder
+    #configs:
+    #  - source: proxy_conf_file
+    #    target: /etc/traefik/traefik.toml
+    command:
+      - "--web"
+      - "--web.address=:7080"
+      - "--docker"
+      - "--docker.swarmMode"
+      - "--docker.domain=domain.fqdn"
+      - "--docker.watch"
+      - "--logLevel=DEBUG"
+      - "--entryPoints='Name:https://traefik-host-fqdn::8140'"
+      - "--defaultEntryPoints='https'"
+      - "--accessLogsFile='log/access.log'"
+    ports:
+      - 80:80
+      - 7080:7080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      #- /dev/null:/traefik.toml
+    networks:
+      - traefik-net
+    deploy:
+      placement:
+        constraints: [node.role==manager]
+      labels:
+        flip.enabled: "true"
+
+  puppetca-docker:
+    hostname: '{{.Node.Hostname}}'
+    image: registry.fqdn:5000/puppet/puppetserver-local
+    #image: puppet/puppetserver
+    ports:
+      - 8140:8140
+    networks:
+      - traefik-net
+    volumes:
+      - data_vol_code:/etc/puppetlabs/code/
+      - data_vol_conf:/etc/puppetlabs/puppet/
+      - data_vol_ssl:/etc/puppetlabs/puppet/ssl/
+      - data_vol_srvdata:/opt/puppetlabs/server/data/puppetserver/
+    # In some cases unqualified hostnames can have the .local suffix
+    # added, I've seen this under Docker of Mac Beta for instance.
+    # Due to needing to access PuppetDB on same hostame as signed in the
+    # certificate you may need to uncommant the following lines
+    environment:
+      - PUPPETDB_SERVER_URLS=https://puppetdb1.fqdn:8081,https://puppetdb2.fqdn:8081
+      - PUPPET_SERVER=puppetca1.fqdn
+      - CA_SERVER=puppetca1.fqdn
+      - CA_SERVER2=puppetca2.fqdn
+      - DNS_ALT_NAMES=puppet-sm.fqdn,puppetca1.fqdn,puppetca2.fqdn,puppet1.fqdn,puppet2.fqdn,puppetca.fqdn,puppet.fqdn
+      # Will only be used by Puppetca
+      - AUTOSIGN=true
+      - BASEMODULEPATH=/etc/puppetlabs/code/modules:/etc/puppetlabs/code/modules-gic:/etc/puppetlabs/code/modules-eis
+    deploy:
+      mode: replicated
+      #mode: global
+      # 1 puppetca & 2 workers. Scale accordingly
+      replicas: 2
+      placement:
+        constraints:
+        - node.labels.type == puppetca_node
+        - node.role == worker
+      labels:
+        - "traefik.port=8140"
+        - "traefik.backend=puppetca-docker"
+        - "traefik.enable=true"
+        - "traefik.logLevel=DEBUG"
+        - "traefik.backend.loadbalancer.swarm=true"
+        - "traefik.docker.network=traefik-net"
+        - "traefik.frontend.rule=Host:puppetca-docker.fqdn"
+
+
+
+volumes:
+  data_vol_code:
+  data_vol_conf:
+  data_vol_ssl:
+  data_vol_srvdata:
+  data_puppetdb_vol1:
+  data_puppetdb_vol2:
+  puppetdb-postgres-data1:
+  puppetdb-postgres-data2:
+networks:
+  traefik-net:
+
+# Traefik configs not used for now. Just a place holder
+configs:
+  proxy_conf_file:
+    file: ./traefik.toml

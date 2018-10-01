@@ -41,6 +41,7 @@ RUN apt-get update && \
 # Add configuration files into the image
 COPY config/puppetserver /etc/default/puppetserver
 COPY config/logback.xml /etc/puppetlabs/puppetserver/
+COPY config/puppetserver.conf /etc/puppetlabs/puppetserver/conf.d/
 COPY config/request-logging.xml /etc/puppetlabs/puppetserver/
 
 COPY config/puppet.conf /etc/puppetlabs/puppet/
@@ -53,9 +54,12 @@ COPY config/puppet.conf /etc/puppetlabs/puppet/
 ##PuppetDB configs. Taken from Puppetserver Dockerfile
 RUN puppet config set storeconfigs_backend puppetdb --section main && \
     puppet config set storeconfigs true --section main && \
-    puppet config set reports puppetdb --section main
+    puppet config set reports puppetdb --section main && \
+    cp -pr /etc/puppetlabs/puppet /var/tmp && \
+    rm -rf /var/tmp/puppet/ssl
 
-COPY config/puppetdb.conf /etc/puppetlabs/puppet/
+#COPY config/puppetdb.conf /etc/puppetlabs/puppet/
+COPY config/puppetdb.conf /var/tmp/puppet/
 
 
 

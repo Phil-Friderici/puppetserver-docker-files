@@ -48,9 +48,10 @@ services:
   #  #restart_policy:
   #  #    condition: on-failure
     volumes:
-      - data_vol:/etc/puppetlabs/code/
-      - data_vol:/etc/puppetlabs/puppet/ssl/
-      - data_vol:/opt/puppetlabs/server/data/puppetserver/
+      - data_vol_code:/etc/puppetlabs/code/
+      - data_vol_conf:/etc/puppetlabs/puppet/
+      - data_vol_ssl:/etc/puppetlabs/puppet/ssl/
+      - data_vol_srvdata:/opt/puppetlabs/server/data/puppetserver/
     # In some cases unqualified hostnames can have the .local suffix
     # added, I've seen this under Docker of Mac Beta for instance.
     # Due to needing to access PuppetDB on same hostame as signed in the
@@ -59,17 +60,19 @@ services:
       - PUPPETDB_SERVER_URLS=https://puppetdb1.fqdn.domain:8081,https://puppetdb2.fqdn.domain:8081
       - PUPPET_SERVER=swarm_manager.fqdn.domain
       - CA_SERVER=puppetca.fqdn.domain
-      - CA_PORT=8140
       - DNS_ALT_NAMES=puppetca.fqdn.domain,swarm_manager.fqdn.domain,puppet-swarm001.fqdn.domain,puppet-swarm002.fqdn.domain,swarm_node003.fqdn.domain,swarm_node004.fqdn.domain,puppet-swarm.fqdn.domain,flip.fqdn.domain
       - CA_SERVER1=puppetca1.fqdn.domain #name returned by hostname and not alias
       - CA_SERVER2=puppetca2.fqdn.domain #name returned by hostname and not alias
       # Will only be used by Puppetca
       - AUTOSIGN=true
+      - BASEMODULEPATH=/etc/puppetlabs/code/modules:/etc/puppetlabs/code/modules-gic:/etc/puppetlabs/code/modules-eis
+      # Optional. Ensure this environment exists before setting this optional variable
+      - SERVER_ENVIRONMENT=docker_build
     deploy:
       mode: replicated
       #mode: global
       # 1 puppetca & 2 workers. Scale accordingly 
-      replicas: 3
+      replicas: 2
       placement:
         constraints:
         - node.labels.type == puppet_node
@@ -106,6 +109,8 @@ services:
       - traefik-net
     deploy:
       #mode: replicated
+      # Prevents idle session timeout
+      endpoint_mode: dnsrr
       mode: global
       #replicas: 2
       placement:
@@ -144,9 +149,10 @@ services:
       - traefik-net
     deploy:
       mode: global
+      # Prevents idle session timeout
+      endpoint_mode: dnsrr
       placement:
         constraints:
-        #- node.labels.type == puppetdb_node
         - node.labels.type == puppetdb2_node
         - node.role == worker
       labels:
@@ -213,7 +219,6 @@ services:
       - target: 8081
         published: 8081
         mode: host
-    ports:
       - target: 8080
         published: 8080
         mode: host
@@ -241,7 +246,10 @@ services:
 
 
 volumes:
-  data_vol:
+  data_vol_code:
+  data_vol_conf:
+  data_vol_ssl:
+  data_vol_srvdata:
   data_puppetdb_vol1:
   data_puppetdb_vol2:
   puppetdb-postgres-data1:
