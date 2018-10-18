@@ -79,8 +79,11 @@ And run the following command, providing a tag to refer to the image
 
 
 Puppetdb
-# cd /PATH/puppetserver-docker-files/puppetdb/docker/puppetdb 
-# docker build -t puppet/puppetdb-local .
+
+Puppetlabs puppetdb and postgresql docker images can be used directly without any customization
+Latest version is 6.0.x , but a specific image version can be selected by specifying the image version such as
+
+image: puppet/puppetdb:5.2.4
 
 
 
@@ -91,10 +94,6 @@ such as
 Puppetserver image
 # docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
 # docker push docker-registry.fqdn:5000/puppet/puppetserver-local
-
-PuppetDB image
-# docker tag puppet/puppetdb-local docker-registry.fqdn:5000/puppet/puppetdb-local
-# docker push docker-registry.fqdn:5000/puppet/puppetdb-local
 
 
 
@@ -144,7 +143,7 @@ openssl req -newkey rsa:4096 -nodes -sha256 \
 ls registry_certs/
 Finally you have two files:
 
-domain.cert  this file can be handled to the client using the private registry
+domain.cert  this file can be copied to the client using the private registry
 domain.key  this is the private key which is necessary to run the private registry with TLS
 
 3.2.2. Run the Private Docker Registry with TLS

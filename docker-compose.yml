@@ -166,11 +166,9 @@ services:
 # Primary PuppetDB. Uses Primary Read/write postgres
   puppetdb-primary:
     hostname: '{{.Node.Hostname}}'
-    #image: puppet/puppetdb
-    image: swarm_manager.fqdn.domain:5000/puppet/puppetdb-local
+    image: puppet/puppetdb:5.2.4
     environment:
-      - CA_SERVER=puppetca.fqdn.domain
-      - CA_PORT=8140
+      - PUPPETSERVER_HOSTNAME=puppetca.fqdn.domain
       - PUPPETDB_DATABASE_CONNECTION="//puppetdb-postgres1:5432/puppetdb"
     networks:
       - traefik-net
@@ -207,11 +205,9 @@ services:
 ## This is a Puppetdb replica. Uses read/write postgres DB
   puppetdb-replica:
     hostname: '{{.Node.Hostname}}'
-    #image: puppet/puppetdb
-    image: swarm_manager.fqdn.domain:5000/puppet/puppetdb-local
+    image: puppet/puppetdb:5.2.4
     environment:
-      - CA_SERVER=puppetca.fqdn.domain
-      - CA_PORT=8140
+      - PUPPETSERVER_HOSTNAME=puppetca.fqdn.domain
       - PUPPETDB_DATABASE_CONNECTION="//puppetdb-postgres2:5432/puppetdb"
     networks:
       - traefik-net
