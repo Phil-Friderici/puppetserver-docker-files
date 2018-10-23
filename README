@@ -159,7 +159,8 @@ docker run -d -p 5000:5000 \
 
 Now you can push your local image into the new registry after tagging it:
 
-docker push localhost:5000/image:1.0.0
+docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
+docker push docker-registry.fqdn:5000/puppet/puppetserver-local
 
 
 
@@ -177,10 +178,9 @@ cp domain.key /etc/docker/certs.d/docker.registry.fqdn:5000/domain.key
 
 
 service docker restart
-Now finally you can push you images into the new private registry:
+Now finally you can pull your images from the new private registry:
 
-docker tag imixs/proxy docker.registry.fqdn:5000/proxy:dock01
-docker push docker.registry.fqdn:5000/proxy:dock01
+docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
 
 
 
