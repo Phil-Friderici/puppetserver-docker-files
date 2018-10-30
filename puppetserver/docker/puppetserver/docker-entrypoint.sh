@@ -31,6 +31,23 @@ if test -n "${BASEMODULEPATH}" ; then
   puppet config set basemodulepath "${BASEMODULEPATH}" --section main
 fi
 
+# Allow setting the dns_alt_names for the server's certificate. This
+# setting will only have an effect when the container is started without
+# an existing certificate on the /etc/puppetlabs/puppet volume
+if test -n "${DNS_ALT_NAMES}"; then
+    fqdn=$(facter fqdn)
+    if test ! -f "/etc/puppetlabs/puppet/ssl/certs/$fqdn.pem" ; then
+        #puppet config set dns_alt_names "${DNS_ALT_NAMES}" --section master
+        puppet config set dns_alt_names "${DNS_ALT_NAMES}" --section main
+    else
+        actual=$(puppet config print dns_alt_names --section master)
+        if test "${DNS_ALT_NAMES}" != "${actual}" ; then
+            echo "Warning: DNS_ALT_NAMES has been changed from the value in puppet.conf"
+            echo "         Remove/revoke the old certificate for this to become effective"
+        fi
+    fi
+fi
+
 # Disable local CA if using external CA or multi-master configuration
 # CA service enabled by default.
 # Inheritance of environment variable by stack deployment remote client from host seems not supported.
@@ -68,23 +85,6 @@ else
   if test -n "${AUTOSIGN}" ; then
     puppet config set autosign "$AUTOSIGN" --section master
   fi
-fi
-
-# Allow setting the dns_alt_names for the server's certificate. This
-# setting will only have an effect when the container is started without
-# an existing certificate on the /etc/puppetlabs/puppet volume
-if test -n "${DNS_ALT_NAMES}"; then
-    fqdn=$(facter fqdn)
-    if test ! -f "/etc/puppetlabs/puppet/ssl/certs/$fqdn.pem" ; then
-        #puppet config set dns_alt_names "${DNS_ALT_NAMES}" --section master
-        puppet config set dns_alt_names "${DNS_ALT_NAMES}" --section main
-    else
-        actual=$(puppet config print dns_alt_names --section master)
-        if test "${DNS_ALT_NAMES}" != "${actual}" ; then
-            echo "Warning: DNS_ALT_NAMES has been changed from the value in puppet.conf"
-            echo "         Remove/revoke the old certificate for this to become effective"
-        fi
-    fi
 fi
 
 #Add cron

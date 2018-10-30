@@ -56,10 +56,10 @@ Join the nodes to the docker swarm by running the previous command from Swarm ma
 
 This step is only needed if using Custom build images. Otherwise docker images can be downloaed directly from Internet.
 
-For now, the Puppetlabs' images seem to lack some configuration options that are necessary for our deployment. They are undergoing rapid enhancements and hopefully soon we would not need this step.
+For now, the Puppetlabs' images seem to lack some configuration options that are necessary for our deployment. They are undergoing rapid enhancements and hopefully soon we would not need local customizations.
 
 a. One such shortcoming is that each Puppetserver instance instantiates a Puppetca.
-b. Puppetserver health check seems to be tied to the hostname "puppet"
+b. Puppetserver health check seems to be tied to the hostname "puppet". Send PR, and this is now fixed in upstream images
 
 
 
@@ -102,6 +102,10 @@ Puppetserver image
 This step is not needed when using Internet docker images, such as from Puppetlabs. only necessary when using our own customized local images.
 
 Customized images could also be stripped of proprietary info and pushed to the public Internet registry.
+ 
+Observed that there's also an ericsson internal docker registry that can be used
+
+armdocker.rnd.ericsson.se
 
 3.1. For the swarm setup, images have to come from a central registry.
 
@@ -260,6 +264,17 @@ and on each node you can check the running service
 
 
 3. Sign Compile master SSL certificates
+
+(For Puppet version 6, there's an option that allows automatic signing of certificates with alternate dns names)
+
+/etc/puppetlabs/puppetserver/conf.d/puppetserver.conf
+
+# settings related to the certificate authority
+certificate-authority: {
+    # allow CA to sign certificate requests that have subject alternative names.
+    # allow-subject-alt-names: false
+    allow-subject-alt-names: true
+
 
 For deployment of Puppet Compile master servers for the first time, certificates need to be manually signed after running the above command to allow alternate dns names. Then
 subsequent docker stack deploy would reuse the same certificates. We could automate these steps in future.
