@@ -48,6 +48,7 @@ if test -n "${DNS_ALT_NAMES}"; then
     fi
 fi
 
+
 # Disable local CA if using external CA or multi-master configuration
 # CA service enabled by default.
 # Inheritance of environment variable by stack deployment remote client from host seems not supported.

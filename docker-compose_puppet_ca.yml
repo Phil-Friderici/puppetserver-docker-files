@@ -35,7 +35,7 @@ services:
 
   puppetca-docker:
     hostname: '{{.Node.Hostname}}'
-    image: registry.fqdn:5000/puppet/puppetserver-local
+    image: registry.fqdn:5000/puppet/puppetserver6-local
     #image: puppet/puppetserver
     ports:
       - 8140:8140
@@ -52,9 +52,7 @@ services:
     # certificate you may need to uncommant the following lines
     environment:
       - PUPPETDB_SERVER_URLS=https://puppetdb1.fqdn:8081,https://puppetdb2.fqdn:8081
-      - PUPPET_SERVER=puppetca1.fqdn
       - CA_SERVER=puppetca1.fqdn
-      - CA_SERVER2=puppetca2.fqdn
       - DNS_ALT_NAMES=puppet-sm.fqdn,puppetca1.fqdn,puppetca2.fqdn,puppet1.fqdn,puppet2.fqdn,puppetca.fqdn,puppet.fqdn
       # Will only be used by Puppetca
       - AUTOSIGN=true

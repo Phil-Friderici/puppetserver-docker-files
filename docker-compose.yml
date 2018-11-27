@@ -35,7 +35,7 @@ services:
 
   puppet-docker:
     hostname: '{{.Node.Hostname}}'
-    image: swarm_manager.fqdn.domain:5000/puppet/puppetserver-local
+    image: swarm_manager.fqdn.domain:5000/puppet/puppetserver6-local
     #image: puppet/puppetserver
     #ports:
     #  - target: 8140
@@ -45,8 +45,6 @@ services:
       - 8140:8140
     networks:
       - traefik-net
-  #  #restart_policy:
-  #  #    condition: on-failure
     volumes:
       - data_vol_code:/etc/puppetlabs/code/
       - data_vol_conf:/etc/puppetlabs/puppet/
@@ -58,16 +56,12 @@ services:
     # certificate you may need to uncommant the following lines
     environment:
       - PUPPETDB_SERVER_URLS=https://puppetdb1.fqdn.domain:8081,https://puppetdb2.fqdn.domain:8081
-      - PUPPET_SERVER=swarm_manager.fqdn.domain
       - CA_SERVER=puppetca.fqdn.domain
+      - CA_DISABLE=true
       - DNS_ALT_NAMES=puppetca.fqdn.domain,swarm_manager.fqdn.domain,puppet-swarm001.fqdn.domain,puppet-swarm002.fqdn.domain,swarm_node003.fqdn.domain,swarm_node004.fqdn.domain,puppet-swarm.fqdn.domain,flip.fqdn.domain
-      - CA_SERVER1=puppetca1.fqdn.domain #name returned by hostname and not alias
-      - CA_SERVER2=puppetca2.fqdn.domain #name returned by hostname and not alias
       # Will only be used by Puppetca
       - AUTOSIGN=true
       - BASEMODULEPATH=/etc/puppetlabs/code/modules:/etc/puppetlabs/code/modules-gic:/etc/puppetlabs/code/modules-eis
-      # Optional. Ensure this environment exists before setting this optional variable
-      - SERVER_ENVIRONMENT=docker_build
     deploy:
       mode: replicated
       #mode: global
@@ -166,7 +160,8 @@ services:
 # Primary PuppetDB. Uses Primary Read/write postgres
   puppetdb-primary:
     hostname: '{{.Node.Hostname}}'
-    image: puppet/puppetdb:5.2.4
+    #image: puppet/puppetdb:5.2.4
+    image: puppet/puppetdb:6.0.0
     environment:
       - PUPPETSERVER_HOSTNAME=puppetca.fqdn.domain
       - PUPPETDB_DATABASE_CONNECTION="//puppetdb-postgres1:5432/puppetdb"
@@ -205,7 +200,8 @@ services:
 ## This is a Puppetdb replica. Uses read/write postgres DB
   puppetdb-replica:
     hostname: '{{.Node.Hostname}}'
-    image: puppet/puppetdb:5.2.4
+    #image: puppet/puppetdb:5.2.4
+    image: puppet/puppetdb:6.0.0
     environment:
       - PUPPETSERVER_HOSTNAME=puppetca.fqdn.domain
       - PUPPETDB_DATABASE_CONNECTION="//puppetdb-postgres2:5432/puppetdb"
@@ -252,3 +248,7 @@ volumes:
   puppetdb-postgres-data2:
 networks:
   traefik-net:
+
+configs:
+  proxy_conf_file:
+    file: ./traefik.toml
