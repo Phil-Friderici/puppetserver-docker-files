@@ -96,9 +96,4 @@ echo "" >> /var/spool/cron/crontabs/root
 service cron restart
 fi
 
-
-ln -s /etc/puppetlabs/code/auth.conf /etc/puppetlabs/puppet/auth.conf
-ln -s /etc/puppetlabs/code/fileserver.conf /etc/puppetlabs/puppet/fileserver.conf
-
-
 exec /opt/puppetlabs/bin/puppetserver "$@"

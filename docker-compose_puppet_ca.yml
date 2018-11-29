@@ -16,7 +16,7 @@ services:
       - "--docker.domain=domain.fqdn"
       - "--docker.watch"
       - "--logLevel=DEBUG"
-      - "--entryPoints='Name:https://traefik-host-fqdn::8140'"
+      #- "--entryPoints='Name:https://traefik-host-fqdn:8140'"
       - "--defaultEntryPoints='https'"
       - "--accessLogsFile='log/access.log'"
     ports:

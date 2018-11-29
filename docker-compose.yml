@@ -16,7 +16,7 @@ services:
       - "--docker.domain=fqdn.domain"
       - "--docker.watch"
       - "--logLevel=DEBUG"
-      - "--entryPoints='Name:http://swarm_manager.fqdn.domain::80'"
+      #- "--entryPoints='Name:http://swarm_manager.fqdn.domain:80'"
       - "--defaultEntryPoints='http'"
       - "--accessLogsFile='log/access.log'"
     ports:
@@ -59,8 +59,6 @@ services:
       - CA_SERVER=puppetca.fqdn.domain
       - CA_DISABLE=true
       - DNS_ALT_NAMES=puppetca.fqdn.domain,swarm_manager.fqdn.domain,puppet-swarm001.fqdn.domain,puppet-swarm002.fqdn.domain,swarm_node003.fqdn.domain,swarm_node004.fqdn.domain,puppet-swarm.fqdn.domain,flip.fqdn.domain
-      # Will only be used by Puppetca
-      - AUTOSIGN=true
       - BASEMODULEPATH=/etc/puppetlabs/code/modules:/etc/puppetlabs/code/modules-gic:/etc/puppetlabs/code/modules-eis
     deploy:
       mode: replicated
@@ -91,7 +89,7 @@ services:
       - POSTGRES_PASSWORD=puppetdb
       - POSTGRES_USER=puppetdb
     volumes:
-      - puppetdb-postgres-data1:/var/lib/postgresql/data-orig-image/
+      - puppetdb-postgres-data1:/var/lib/postgresql/data/
     # Published only for testing, but not necessary to publish postgres ports in production
     ports:
       - target: 5432
@@ -132,7 +130,7 @@ services:
       - POSTGRES_PASSWORD=puppetdb
       - POSTGRES_USER=puppetdb
     volumes:
-      - puppetdb-postgres-data2:/var/lib/postgresql/data-orig-image/
+      - puppetdb-postgres-data2:/var/lib/postgresql/data/
     ports:
       - target: 5432
         published: 5432
