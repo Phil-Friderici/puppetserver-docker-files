@@ -16,7 +16,7 @@ services:
       - "--docker.domain=fqdn.domain"
       - "--docker.watch"
       - "--logLevel=DEBUG"
-      #- "--entryPoints='Name:http://swarm_manager.fqdn.domain:80'"
+      #- "--entryPoints='Name:http://traefik.fqdn.domain:80'"
       - "--defaultEntryPoints='http'"
       - "--accessLogsFile='log/access.log'"
     ports:
@@ -35,7 +35,7 @@ services:
 
   puppet-docker:
     hostname: '{{.Node.Hostname}}'
-    image: swarm_manager.fqdn.domain:5000/puppet/puppetserver6-local
+    image: registry.fqdn:5000/puppet/puppetserver6-local
     #image: puppet/puppetserver
     #ports:
     #  - target: 8140
