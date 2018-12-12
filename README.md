@@ -9,38 +9,50 @@ They can be used to setup a complete Puppetserver stack with all the components
 
 
 ### 1.1. Ensure hostname command returns fqdn
-check /etc/hosts & /etc/hostname & reboot 
+```
+check /etc/hosts & /etc/hostname
+ &
+reboot 
+```
 or
+```
 hostnamectl set-hostname hostname.fqdn
+```
  
 ### 1.2. Install latest versions of docker
 
 docker-ce-18.03.1.ce-1.el7.centos.x86_64
 
-$ curl -SsL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
-
+```
+curl -SsL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
+```
 
 To install
-
+```
 yum --showduplicates list docker-ce
 yum install -y docker-ce-18.03.1.ce-1.el7.centos.x86_64
 
 enable/start docker
 systemctl enable docker
 systemctl start docker
+```
 
 
 ### 1.3. initialize swarm enviornment in case Swarm environments are not already prepared.
 
 Choose a system that will be a swarm manager (For redudancy and in production we shall have more than one swarm managers per swarm
 
-$ docker swarm init
+```
+docker swarm init
+```
 
 A swarm join token is gererated that can be used to join the other docker nodes to this swarm.
 
 To recall the swarm token, run the following command:
 
-$ docker swarm join-token worker
+```
+docker swarm join-token worker
+```
 
 For our case, we shall have 2 separate SWARM environments
 a. for PuppetCA
@@ -53,7 +65,9 @@ Each service port is published to all swarm nodes by default, and that would mak
 
 Join the nodes to the docker swarm by running the previous command from Swarm manager.
 
-$ docker swarm join --token SWMTKN-1-30sry8s4phyospw192bax9l9scri60pvtktjoplhbm1qq520sl-1ndd7z3h31kaob9nlqsxqbaoq 111.111.111.100:2377
+```
+docker swarm join --token SWMTKN-1-30sry8s4phyospw192bax9l9scri60pvtktjoplhbm1qq520sl-1ndd7z3h31kaob9nlqsxqbaoq 111.111.111.100:2377
+```
 
 
 
@@ -78,11 +92,15 @@ Customised Build files are found in this directory (puppetserver & puppetdb)
 
 such as (puppetserver)
 
-$ cd /PATH/puppetserver-docker-files/puppetserver/docker/puppetserver
+```
+cd /PATH/puppetserver-docker-files/puppetserver/docker/puppetserver
+```
 
 And run the following command, providing a tag to refer to the image
 
-$ docker build -t puppet/puppetserver1-local .
+```
+docker build -t puppet/puppetserver1-local .
+```
 
 
 Puppetdb
@@ -100,8 +118,10 @@ You then need to push these images to a registry server for easy access during s
 such as
 Puppetserver image
 
-$ docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
-$ docker push docker-registry.fqdn:5000/puppet/puppetserver-local
+```
+docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
+docker push docker-registry.fqdn:5000/puppet/puppetserver-local
+```
 
 
 
@@ -111,9 +131,8 @@ This step is not needed when using Internet docker images, such as from Puppetla
 
 Customized images could also be stripped of proprietary info and pushed to the public Internet registry.
  
-Observed that there's also an ericsson internal docker registry that can be used
 
-armdocker.rnd.ericsson.se
+Internal registry would be used. So this step is not necessary
 
 ## 3.1. For the swarm setup, images have to come from a central registry.
 
@@ -121,14 +140,18 @@ To create a local registry run the following command that will also start the re
 
 
 
+```
 docker run -d -p 5000:5000 --restart=always --name registry registry:2
+```
+
 This is important If you want to use the registry as part of your permanent infrastructure, and sets it to restart automatically when Docker restarts or if it exits.
 This example uses the --restart always flag to set a restart policy for the registry.
 
 
 For one time registry service
-(# docker service create --name registry --publish published=5000,target=5000 registry:2)
-
+```
+docker service create --name registry --publish published=5000,target=5000 registry:2
+```
 This way, images can be pushed to localhost:5000
 
 Registry is only useful if it can also be used across network. A registry can be created to be used with fqdn:5000/
@@ -148,11 +171,14 @@ domain.key  = registry.fqdn.private key in $ssldir/private_keys/registry.fqdn.pe
 ### 3.2.1. Create a Self Signed Certificate
 You need to create a self signed certificate on your server to use it for the private Docker Registry.
 
+```
 mkdir registry_certs
 openssl req -newkey rsa:4096 -nodes -sha256 \
         -keyout registry_certs/domain.key -x509 -days 356 \
         -out registry_certs/domain.cert
 ls registry_certs/
+```
+
 Finally you have two files:
 
 domain.cert  this file can be copied to the client using the private registry
@@ -161,19 +187,21 @@ domain.key  this is the private key which is necessary to run the private regist
 ### 3.2.2. Run the Private Docker Registry with TLS
 Now we can start the registry with the local domain certificate and key file:
 
+```
 docker run -d -p 5000:5000 \
                 -v $(pwd)/registry_certs:/certs \
                 -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.cert \
                 -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
                 --restart=always --name registry registry:2
-
+```
 
 
 Now you can push your local image into the new registry after tagging it:
 
+```
 docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
 docker push docker-registry.fqdn:5000/puppet/puppetserver-local
-
+```
 
 
 
@@ -183,6 +211,7 @@ Now as the private registry is started with TLS Support you can access the regis
 /etc/docker/certs.d/<registry_address>/ca.cert
 Where <registry_address> is the server host name. After the certificate was updated you need to restart the local docker daemon:
 
+```
 mkdir -p /etc/docker/certs.d/docker.registry.fqdn:5000
 cp domain.cert /etc/docker/certs.d/docker.registry.fqdn:5000/ca.crt
 cp domain.cert /etc/docker/certs.d/docker.registry.fqdn:5000/domain.cert
@@ -190,10 +219,13 @@ cp domain.key /etc/docker/certs.d/docker.registry.fqdn:5000/domain.key
 
 
 service docker restart
+```
+
 Now finally you can pull your images from the new private registry:
 
+```
 docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
-
+```
 
 
 
@@ -213,8 +245,9 @@ Configure the following files on each swarm node that will pull docker images fr
 This allows images to be downloaded from the Private/internal registry.
 To test on one of the swarm nodes:
 
+```
 docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
-
+```
 
 
 
@@ -235,19 +268,22 @@ Ensure labels are configured on container hosts appropriately because they are u
 ## 1. Add labels to Swarm nodes:
 Run these commands on the swarm manager hosts.
 
-$ docker node update --label-add type=puppetdb1_node <Node ID>
+```
+docker node update --label-add type=puppetdb1_node <Node ID>
 e.g.
-$ docker node update --label-add type=fqdn_puppetdb_primary ja3c57gxcso6awtlp4obenih9
+docker node update --label-add type=fqdn_puppetdb_primary ja3c57gxcso6awtlp4obenih9
+```
 
 ## 2. deploy the full stack with the following command
 
 ### Deploy PuppetCA
 Puppet compile masters depend on availability of PuppetCA
 
-
+```
 $ docker stack deploy -c docker-compose.yml <stack-name>
 such as
 $ docker stack deploy -c docker-compose_ca.yml puppet
+```
 
 
 
@@ -255,7 +291,9 @@ $ docker stack deploy -c docker-compose_ca.yml puppet
 ### Deploy Puppet Compile masters
 When all the PuppetCA containers show health status, then you can deploy the rest of the Puppet compile master containers
 
-$ docker stack deploy -c docker-compose.yml puppet
+```
+docker stack deploy -c docker-compose.yml puppet
+```
 
 This has been tested to work with
 
@@ -263,10 +301,13 @@ Docker version 18.03.1-ce
 
 See the stack services status on Swarm manager:
 
-$ docker stack ps puppet
+```
+docker stack ps puppet
+
 and on each node you can check the running service
 
-$ docker ps
+docker ps
+```
 
 
 
@@ -290,17 +331,21 @@ To sign certificates for Compile masters:
 
 Run the following command on puppet ca container
 
-$ docker ps
-$ docker exec -it <puppetca-id-from-above>
+```
+docker ps
+docker exec -it <puppetca-id-from-above>
 
 and
 
-$ puppet cert sign --allow-dns-alt-names <puppet1.fqdn>
+puppet cert sign --allow-dns-alt-names <puppet1.fqdn>
+```
 
 In case a docker container fails, or to see progress check logs
 
-$ docker ps
-$ docker logs -f <container-id>
+```
+docker ps
+docker logs -f <container-id>
+```
 
 
 # Extra notes
@@ -311,8 +356,10 @@ Add labels to Swarm nodes:
 
 This allows restricting docker containers on specific nodes. Useful for SSL certificates etc.
 
-$ docker node update --label-add type=puppetdb1_node <Node ID>
-$ docker node update --label-add type=fqdn_puppetdb_primary ja3c57gxcso6awtlp4obenih9
+```
+docker node update --label-add type=puppetdb1_node <Node ID>
+docker node update --label-add type=fqdn_puppetdb_primary ja3c57gxcso6awtlp4obenih9
+```
  
 Use intuitive label_name. 
 Node ID can be found from 1st column in the output of "docker node ls" command on the swarm manager.
