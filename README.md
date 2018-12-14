@@ -8,7 +8,10 @@ They can be used to setup a complete Puppetserver stack with all the components
 ## 1. Prepare the hosts:
 
 
-### 1.1. Ensure hostname command returns fqdn
+### 1.1. Ensure hostname is properly configured
+
+"hostname -f" command should return fqdn
+
 ```
 check /etc/hosts & /etc/hostname
  &
@@ -55,7 +58,9 @@ docker swarm join-token worker
 ```
 
 For our case, we shall have 2 separate SWARM environments
+
 a. for PuppetCA
+
 b. For the rest of the components including Puppet Compile masters and PuppetDB & PostgreSQL services
 
 This is in order to separate PuppetCA traffic, from Puppet Compile Masters Traffic. 
@@ -73,7 +78,7 @@ docker swarm join --token SWMTKN-1-30sry8s4phyospw192bax9l9scri60pvtktjoplhbm1qq
 
 # 2. Docker images
 
-This step is only needed if using Custom build images. Otherwise docker images can be downloaed directly from Internet.
+This step is only needed if using Custom build images. Otherwise docker images can be downloaded directly from Internet.
 
 For now, the Puppetlabs' images seem to lack some configuration options that are necessary for our deployment. They are undergoing rapid enhancements and hopefully soon we would not need local customizations.
 
@@ -126,140 +131,18 @@ docker push docker-registry.fqdn:5000/puppet/puppetserver-local
 
 
 # 3. Setup local registry server:
-
-This step is not needed when using Internet docker images, such as from Puppetlabs. only necessary when using own customized local images.
-
-Customized images could also be stripped of proprietary info and pushed to the public Internet registry.
- 
-
-Internal registry would be used. So this step is not necessary
-
-## 3.1. For the swarm setup, images have to come from a central registry.
-
-To create a local registry run the following command that will also start the registry automatically.
-
-
-
-```
-docker run -d -p 5000:5000 --restart=always --name registry registry:2
-```
-
-This is important If you want to use the registry as part of your permanent infrastructure, and sets it to restart automatically when Docker restarts or if it exits.
-This example uses the --restart always flag to set a restart policy for the registry.
-
-
-For one time registry service
-```
-docker service create --name registry --publish published=5000,target=5000 registry:2
-```
-This way, images can be pushed to localhost:5000
-
-Registry is only useful if it can also be used across network. A registry can be created to be used with fqdn:5000/
-And this requires SSL certificates to be setup on the Registry / and also on nodes.
-
-
-## 3.2 Registry SSL certificate setup.
-
-Configure TLS
- 
-Create Self-signed SSL certificates or use certificates provided by external CA
-In our case, we could use PuppetCA signed certificates
-
-domain.cert = registry.fqdn.cert found in $ssldir/certs/registry.fqdn.pem
-domain.key  = registry.fqdn.private key in $ssldir/private_keys/registry.fqdn.pem
-
-### 3.2.1. Create a Self Signed Certificate
-You need to create a self signed certificate on your server to use it for the private Docker Registry.
-
-```
-mkdir registry_certs
-openssl req -newkey rsa:4096 -nodes -sha256 \
-        -keyout registry_certs/domain.key -x509 -days 356 \
-        -out registry_certs/domain.cert
-ls registry_certs/
-```
-
-Finally you have two files:
-
-domain.cert  this file can be copied to the client using the private registry
-domain.key  this is the private key which is necessary to run the private registry with TLS
-
-### 3.2.2. Run the Private Docker Registry with TLS
-Now we can start the registry with the local domain certificate and key file:
-
-```
-docker run -d -p 5000:5000 \
-                -v $(pwd)/registry_certs:/certs \
-                -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.cert \
-                -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
-                --restart=always --name registry registry:2
-```
-
-
-Now you can push your local image into the new registry after tagging it:
-
-```
-docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
-docker push docker-registry.fqdn:5000/puppet/puppetserver-local
-```
-
-
-
-## 3.3. Access the Remote Registry form a remote node
-Now as the private registry is started with TLS Support you can access the registry from any client which has the domain certificate. Therefor the certificate file domain.cert must be located on the client in a file
-
-/etc/docker/certs.d/<registry_address>/ca.cert
-Where <registry_address> is the server host name. After the certificate was updated you need to restart the local docker daemon:
-
-```
-mkdir -p /etc/docker/certs.d/docker.registry.fqdn:5000
-cp domain.cert /etc/docker/certs.d/docker.registry.fqdn:5000/ca.crt
-cp domain.cert /etc/docker/certs.d/docker.registry.fqdn:5000/domain.cert
-cp domain.key /etc/docker/certs.d/docker.registry.fqdn:5000/domain.key
-
-
-service docker restart
-```
-
-Now finally you can pull your images from the new private registry:
-
-```
-docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
-```
-
-
-
-
-## 3.4. For secure networks/ Testing, we can skip SSL certificate setup by configuring an insecure registry as below.
-
-Configure the following files on each swarm node that will pull docker images from the named registry server.
-
-
-
-/etc/docker/daemon.json
-{
-"insecure-registries" : ["docker-registry.fqdn:5000"]
-}
-
-
-This allows images to be downloaded from the Private/internal registry.
-To test on one of the swarm nodes:
-
-```
-docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
-```
-
+If you need to setup any local registries, please see the extra notes at the end of this README
 
 
 # 4. docker-compose.yml
 
-In this directory there's also a sample full stack docker-compose.yml
-Please adapt it accordingly to fix the image names and node.label servers
+In this directory there's also a sample full stack docker-compose.yml file.
+Please customize it accordingly to fix the image names and node.label servers
 
 NOTE: YOU MUST set CA_SERVER environment variable in puppet-docker service section
 
 Note: this assumes the Docker swarm environment is already created.
-If not,then please create the swarm as shown in 3.
+If not,then please create the swarm as shown in 1.3.
 
 
 Ensure labels are configured on container hosts appropriately because they are used in the docker-compose.yml file.
@@ -268,6 +151,12 @@ Ensure labels are configured on container hosts appropriately because they are u
 ## 1. Add labels to Swarm nodes:
 Run these commands on the swarm manager hosts.
 
+List nodes in a docker swarm
+```
+docker node ls
+```
+
+Update the labels
 ```
 docker node update --label-add type=puppetdb1_node <Node ID>
 e.g.
@@ -276,13 +165,18 @@ docker node update --label-add type=fqdn_puppetdb_primary ja3c57gxcso6awtlp4oben
 
 ## 2. deploy the full stack with the following command
 
+Plan how the volumes for configuration will be designed.
+
+It's important to ensure PuppetCA SSL certificates are stored on a storage where they can be restored in case of failure. All PuppetCA servers need to use one CA.pem
+
 ### Deploy PuppetCA
 Puppet compile masters depend on availability of PuppetCA
 
 ```
-$ docker stack deploy -c docker-compose.yml <stack-name>
+docker stack deploy -c docker-compose.yml <stack-name>
 such as
-$ docker stack deploy -c docker-compose_ca.yml puppet
+
+docker stack deploy -c docker-compose_ca.yml puppet
 ```
 
 
@@ -350,9 +244,8 @@ docker logs -f <container-id>
 
 # Extra notes
 
-https://medium.com/@gauravsj9/how-to-install-specific-docker-version-on-linux-machine-d0ec2d4095
 
-Add labels to Swarm nodes:
+# 1. Add labels to Swarm nodes:
 
 This allows restricting docker containers on specific nodes. Useful for SSL certificates etc.
 
@@ -365,9 +258,163 @@ Use intuitive label_name.
 Node ID can be found from 1st column in the output of "docker node ls" command on the swarm manager.
 
 
+# 2. Setup local registry server:
+If you need to setup any local registries, please see the extra notes at the end of this README
+
+This step is not needed when using Internet docker images, such as from Puppetlabs. only necessary when using own customized local images.
+
+Customized images could also be stripped of proprietary info and pushed to the public Internet registry.
+ 
+
+Internal registry would be used. So this step is not necessary
+
+## 2.1. For the swarm setup, images have to come from a central registry.
+
+To create a local registry run the following command that will also start the registry automatically.
+
+
+
+```
+docker run -d -p 5000:5000 --restart=always --name registry registry:2
+```
+
+This is important If you want to use the registry as part of your permanent infrastructure, and sets it to restart automatically when Docker restarts or if it exits.
+This example uses the --restart always flag to set a restart policy for the registry.
+
+
+For one time registry service
+```
+docker service create --name registry --publish published=5000,target=5000 registry:2
+```
+This way, images can be pushed to localhost:5000
+
+Registry is only useful if it can also be used across network. A registry can be created to be used with fqdn:5000/
+And this requires SSL certificates to be setup on the Registry / and also on nodes.
+
+
+## 2.2 Registry SSL certificate setup.
+
+Configure TLS
+ 
+Create Self-signed SSL certificates or use certificates provided by external CA
+In our case, we could use PuppetCA signed certificates
+
+domain.cert = registry.fqdn.cert found in $ssldir/certs/registry.fqdn.pem
+domain.key  = registry.fqdn.private key in $ssldir/private_keys/registry.fqdn.pem
+
+### 2.2.1. Create a Self Signed Certificate
+You need to create a self signed certificate on your server to use it for the private Docker Registry.
+
+```
+mkdir registry_certs
+openssl req -newkey rsa:4096 -nodes -sha256 \
+        -keyout registry_certs/domain.key -x509 -days 356 \
+        -out registry_certs/domain.cert
+ls registry_certs/
+```
+
+Finally you have two files:
+
+domain.cert  this file can be copied to the client using the private registry
+domain.key  this is the private key which is necessary to run the private registry with TLS
+
+### 2.2.2. Run the Private Docker Registry with TLS
+Now we can start the registry with the local domain certificate and key file:
+
+```
+docker run -d -p 5000:5000 \
+                -v $(pwd)/registry_certs:/certs \
+                -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.cert \
+                -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+                --restart=always --name registry registry:2
+```
+
+
+Now you can push your local image into the new registry after tagging it:
+
+```
+docker tag puppet/puppetserver-local docker-registry.fqdn:5000/puppet/puppetserver-local
+docker push docker-registry.fqdn:5000/puppet/puppetserver-local
+```
+
+
+
+## 2.3. Access the Remote Registry form a remote node
+Now as the private registry is started with TLS Support you can access the registry from any client which has the domain certificate. Therefor the certificate file domain.cert must be located on the client in a file
+
+/etc/docker/certs.d/<registry_address>/ca.cert
+Where <registry_address> is the server host name. After the certificate was updated you need to restart the local docker daemon:
+
+```
+mkdir -p /etc/docker/certs.d/docker.registry.fqdn:5000
+cp domain.cert /etc/docker/certs.d/docker.registry.fqdn:5000/ca.crt
+cp domain.cert /etc/docker/certs.d/docker.registry.fqdn:5000/domain.cert
+cp domain.key /etc/docker/certs.d/docker.registry.fqdn:5000/domain.key
+
+
+service docker restart
+```
+
+Now finally you can pull your images from the new private registry:
+
+```
+docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
+```
+
+
+
+
+## 2.4. For secure networks/ Testing, we can skip SSL certificate setup by configuring an insecure registry as below.
+
+Configure the following files on each swarm node that will pull docker images from the named registry server.
+
+
+
+/etc/docker/daemon.json
+{
+"insecure-registries" : ["docker-registry.fqdn:5000"]
+}
+
+
+This allows images to be downloaded from the Private/internal registry.
+To test on one of the swarm nodes:
+
+```
+docker pull docker-registry.fqdn:5000/puppet/puppetserver-local
+```
+
+
+# Observations / Troubleshooting
+There are a few times the docker service does not work or container deployment on a node fails.
+Here are a few troubleshooting hints:
+
+## Check the container logs to see if there are any errors
+```
+docker ps
+
+docker logs -f <docker-id-from-above-command>
+```
+
+## Ensure the worker nodes are active in the docker swarm 
+
+List nodes in the docker swarm
+```
+docker node ls
+```
+
+## Sometimes the docker service may fail completely.
+In that case completely removing the docker files under /var/lib/docker and resetting docker service helps.
+Other times simply deleting docker metadb helps
+
+
+
 ## What's next
 
 Improve Traefik setup
 
 
 Check from the design document about setting up Floating IP FLIP on Swarm masters for HA
+
+
+# References
+https://medium.com/@gauravsj9/how-to-install-specific-docker-version-on-linux-machine-d0ec2d4095

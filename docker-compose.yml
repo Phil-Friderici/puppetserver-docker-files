@@ -47,7 +47,7 @@ services:
       - traefik-net
     volumes:
       - data_vol_code:/etc/puppetlabs/code/
-      - data_vol_conf:/etc/puppetlabs/puppet/
+      - data_vol_puppet:/etc/puppetlabs/puppet/
       - data_vol_ssl:/etc/puppetlabs/puppet/ssl/
       - data_vol_srvdata:/opt/puppetlabs/server/data/puppetserver/
     # In some cases unqualified hostnames can have the .local suffix
@@ -237,7 +237,7 @@ services:
 
 volumes:
   data_vol_code:
-  data_vol_conf:
+  data_vol_puppet:
   data_vol_ssl:
   data_vol_srvdata:
   data_puppetdb_vol1:
